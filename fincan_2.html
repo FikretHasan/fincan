@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fincan — учёт дня</title>
+<style>
+:root{--bg:#faf7f2;--card:#fff;--tx:#241d17;--mut:#7a6f64;--bd:#e6ddd0;--ac:#8b4a2b;--in:#1f7a4d;--out:#b3361f;--inb:#e3f3ea;--outb:#fbe7e3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17130f;--card:#221c16;--tx:#f1e9df;--mut:#a39787;--bd:#3a3128;--ac:#d9946a;--in:#5fcf97;--out:#ff8a73;--inb:#1b3328;--outb:#3a1f1a}}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:860px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px}
+.sub{color:var(--mut);margin:0 0 14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+input,select,button{font:inherit;color:var(--tx)}
+input,select{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:7px 9px;min-width:0}
+button{background:var(--ac);color:#fff;border:0;border-radius:9px;padding:9px 14px;cursor:pointer}
+button.sec{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+button:disabled{opacity:.5;cursor:default}
+.drop{border:2px dashed var(--bd);border-radius:12px;padding:20px;text-align:center;color:var(--mut);cursor:pointer}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.th{width:96px;font-size:12px;position:relative}
+.th img{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--bd);display:block}
+.th select{width:100%;margin-top:3px;padding:3px;font-size:12px}
+.th .x{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border-radius:50%;width:20px;height:20px;padding:0;line-height:20px;font-size:12px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.k{border-radius:12px;padding:12px;text-align:center}
+.k small{display:block;color:var(--mut)}
+.k b{font-size:21px}
+.k.in{background:var(--inb)}.k.in b{color:var(--in)}
+.k.out{background:var(--outb)}.k.out b{color:var(--out)}
+.k.pr{background:var(--bg);border:1px solid var(--bd)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th,td{text-align:left;padding:6px 6px;border-bottom:1px solid var(--bd);vertical-align:middle}
+th{color:var(--mut);font-weight:500;font-size:13px}
+td input,td select{width:100%}
+td.n{width:110px}
+.pos{color:var(--in)}.neg{color:var(--out)}
+.msg{color:var(--mut);font-size:13px;margin-top:8px;white-space:pre-line}
+.err{color:var(--out)}
+h2{font-size:16px;margin:0 0 10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>☕ Fincan — учёт дня</h1>
+  <p class="sub">Загрузите скриншоты из Rabitabank, Bank Respublika и WhatsApp-групп — прибыль и расходы посчитаются сами.</p>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <label>День: <input type="date" id="day"></label>
+      <button class="sec" id="today">Сегодня</button>
+    </div>
+    <div class="drop" id="drop">Нажмите или перетащите сюда фото / скриншоты</div>
+    <input type="file" id="file" accept="image/*" multiple hidden>
+    <div class="thumbs" id="thumbs"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="go" disabled>Распознать фото</button>
+      <span class="msg" id="status" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="kpis">
+      <div class="k in"><small>Доход</small><b id="kin">0</b></div>
+      <div class="k out"><small>Расходы</small><b id="kout">0</b></div>
+      <div class="k pr"><small>Прибыль</small><b id="kpr">0</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">Операции за день</h2>
+      <div class="row">
+        <button class="sec" id="add">+ Вручную</button>
+        <button class="sec" id="csv">Скачать CSV</button>
+      </div>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Тип</th><th>Описание</th><th>Источник</th><th class="n">Сумма ₼</th><th></th></tr></thead>
+      <tbody id="tb"></tbody>
+    </table></div>
+    <div class="msg" id="empty"></div>
+  </div>
+
+  <div class="card">
+    <h2>По дням</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Дата</th><th>Доход</th><th>Расходы</th><th>Прибыль</th></tr></thead>
+      <tbody id="days"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<script>
+const SRC=["Rabitabank","Bank Respublika","WhatsApp","Вручную"];
+const $=id=>document.getElementById(id);
+let tx=[],files=[];
+try{tx=JSON.parse(localStorage.getItem("fincan_tx")||"[]")}catch(e){tx=[]}
+const save=()=>{try{localStorage.setItem("fincan_tx",JSON.stringify(tx))}catch(e){}};
+const fmt=n=>(Math.round(n*100)/100).toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:2});
+const iso=d=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*6e4);return z.toISOString().slice(0,10)};
+$("day").value=iso(new Date());
+$("today").onclick=()=>{$("day").value=iso(new Date());render()};
+$("day").onchange=render;
+
+$("drop").onclick=()=>$("file").click();
+$("drop").ondragover=e=>e.preventDefault();
+$("drop").ondrop=e=>{e.preventDefault();addFiles(e.dataTransfer.files)};
+$("file").onchange=e=>{addFiles(e.target.files);e.target.value=""};
+
+function addFiles(list){
+  for(const f of list){
+    if(!f.type.startsWith("image/"))continue;
+    files.push({f,url:URL.createObjectURL(f),src:"WhatsApp"});
+  }
+  drawThumbs();
+}
+function drawThumbs(){
+  const t=$("thumbs");t.innerHTML="";
+  files.forEach((o,i)=>{
+    const d=document.createElement("div");d.className="th";
+    const im=document.createElement("img");im.src=o.url;
+    const x=document.createElement("button");x.className="x";x.textContent="×";
+    x.onclick=()=>{files.splice(i,1);drawThumbs()};
+    const s=document.createElement("select");
+    SRC.slice(0,3).forEach(v=>{const op=document.createElement("option");op.textContent=v;if(v===o.src)op.selected=true;s.appendChild(op)});
+    s.onchange=()=>{o.src=s.value};
+    d.append(im,x,s);t.appendChild(d);
+  });
+  $("go").disabled=!files.length;
+}
+
+function shrink(file){
+  return new Promise((res,rej)=>{
+    const img=new Image();const u=URL.createObjectURL(file);
+    img.onload=()=>{
+      const m=1600,k=Math.min(1,m/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      c.toBlob(b=>{URL.revokeObjectURL(u);b?res(b):rej(new Error("blob"))},"image/jpeg",.85);
+    };
+    img.onerror=()=>rej(new Error("Не удалось открыть фото"));
+    img.src=u;
+  });
+}
+
+function prompt_(src,day){return `Ты помогаешь вести учёт кальянной «Fincan» в Баку. Валюта — манаты (AZN, ₼). На фото: ${src==="WhatsApp"?"скриншот из WhatsApp-группы (отчёты кассы, закупки, расходы, фото чеков/накладных; текст может быть на русском или азербайджанском)":"скриншот мобильного банка "+src+" (история операций)"}.
+Извлеки ВСЕ денежные операции, видимые на фото. Для каждой верни объект:
+{"date":"YYYY-MM-DD","type":"income"|"expense","amount":число>0,"desc":"кратко, что это"}
+Правила:
+- Входящие/поступления/пополнения/выручка/касса = income. Исходящие/платежи/переводы/закупки/зарплата/аренда/чеки = expense.
+- Если дата на фото не видна или без года — используй ${day.slice(0,4)} год; если даты нет совсем — ${day}.
+- Не придумывай данные. Если число нечитаемо — пропусти операцию.
+- Не включай остаток на счёте и итоговые балансы как операции.
+Верни ТОЛЬКО JSON-массив, без пояснений. Если операций нет — [].`}
+
+$("go").onclick=async()=>{
+  const st=$("status");st.className="msg";
+  let sample;
+  try{sample=await claude.use("sample")}catch(e){sample=null}
+  if(!sample){st.className="msg err";st.textContent="Распознавание недоступно в этом окне. Откройте страницу в claude.ai и разрешите доступ, либо добавляйте операции вручную.";return}
+  $("go").disabled=true;
+  const day=$("day").value;let added=0,dup=0,fail=0;
+  for(let i=0;i<files.length;i++){
+    const o=files[i];st.textContent=`Читаю фото ${i+1} из ${files.length}…`;
+    try{
+      const b=await shrink(o.f);
+      const arr=await sample.json(prompt_(o.src,day),{images:[b],cache:false});
+      for(const r of (Array.isArray(arr)?arr:[])){
+        const a=Number(String(r.amount).replace(",","."));
+        if(!a||a<=0)continue;
+        const t={id:Date.now()+Math.random(),date:/^\d{4}-\d{2}-\d{2}$/.test(r.date)?r.date:day,type:r.type==="income"?"income":"expense",amount:a,desc:String(r.desc||"").slice(0,120),src:o.src};
+        const key=x=>[x.date,x.type,x.amount,x.desc,x.src].join("|");
+        if(tx.some(x=>key(x)===key(t))){dup++;continue}
+        tx.push(t);added++;
+      }
+    }catch(e){fail++;if(e&&e.code==="not_granted"){st.className="msg err";st.textContent="Доступ не разрешён.";$("go").disabled=false;return}}
+  }
+  save();render();
+  st.textContent=`Добавлено операций: ${added}`+(dup?`, дубликатов пропущено: ${dup}`:"")+(fail?`, не удалось прочитать фото: ${fail}`:"")+". Проверьте суммы в таблице.";
+  files=[];drawThumbs();
+};
+
+$("add").onclick=()=>{tx.push({id:Date.now()+Math.random(),date:$("day").value,type:"expense",amount:0,desc:"",src:"Вручную"});save();render()};
+
+function render(){
+  const day=$("day").value;
+  const list=tx.filter(t=>t.date===day);
+  const inc=list.filter(t=>t.type==="income").reduce((s,t)=>s+t.amount,0);
+  const out=list.filter(t=>t.type==="expense").reduce((s,t)=>s+t.amount,0);
+  $("kin").textContent=fmt(inc)+" ₼";$("kout").textContent=fmt(out)+" ₼";
+  const p=inc-out;const kp=$("kpr");kp.textContent=fmt(p)+" ₼";kp.className=p>=0?"pos":"neg";
+  const tb=$("tb");tb.innerHTML="";
+  list.forEach(t=>{
+    const tr=document.createElement("tr");
+    const c1=document.createElement("td"),s=document.createElement("select");
+    [["income","Доход"],["expense","Расход"]].forEach(([v,l])=>{const o=document.createElement("option");o.value=v;o.textContent=l;if(t.type===v)o.selected=true;s.appendChild(o)});
+    s.onchange=()=>{t.type=s.value;save();render()};c1.appendChild(s);
+    const c2=document.createElement("td"),d=document.createElement("input");d.value=t.desc;d.onchange=()=>{t.desc=d.value;save()};c2.appendChild(d);
+    const c3=document.createElement("td"),ss=document.createElement("select");
+    SRC.forEach(v=>{const o=document.createElement("option");o.textContent=v;if(t.src===v)o.selected=true;ss.appendChild(o)});
+    ss.onchange=()=>{t.src=ss.value;save()};c3.appendChild(ss);
+    const c4=document.createElement("td");c4.className="n";const a=document.createElement("input");a.type="number";a.step="0.01";a.value=t.amount;a.onchange=()=>{t.amount=Math.max(0,Number(a.value)||0);save();render()};c4.appendChild(a);
+    const c5=document.createElement("td"),x=document.createElement("button");x.className="sec";x.textContent="×";x.onclick=()=>{tx=tx.filter(z=>z!==t);save();render()};c5.appendChild(x);
+    tr.append(c1,c2,c3,c4,c5);tb.appendChild(tr);
+  });
+  $("empty").textContent=list.length?"":"За этот день пока нет операций.";
+  const by={};
+  tx.forEach(t=>{const o=by[t.date]||(by[t.date]={i:0,o:0});t.type==="income"?o.i+=t.amount:o.o+=t.amount});
+  const dd=$("days");dd.innerHTML="";
+  Object.keys(by).sort().reverse().forEach(k=>{
+    const o=by[k],pr=o.i-o.o,tr=document.createElement("tr");
+    [k,fmt(o.i),fmt(o.o),fmt(pr)].forEach((v,i)=>{const td=document.createElement("td");td.textContent=v;if(i===3)td.className=pr>=0?"pos":"neg";tr.appendChild(td)});
+    tr.style.cursor="pointer";tr.onclick=()=>{$("day").value=k;render();window.scrollTo({top:0,behavior:"smooth"})};
+    dd.appendChild(tr);
+  });
+}
+
+$("csv").onclick=async()=>{
+  const rows=[["Дата","Тип","Описание","Источник","Сумма"]].concat(tx.slice().sort((a,b)=>a.date<b.date?-1:1).map(t=>[t.date,t.type==="income"?"Доход":"Расход",t.desc,t.src,t.amount]));
+  const data="\ufeff"+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(";")).join("\n");
+  try{const dl=await claude.use("downloads");if(!dl)throw 0;await dl.save({filename:"fincan.csv",data})}catch(e){$("status").textContent="Скачивание недоступно в этом окне.";}
+};
+render();
+</script>
+</body>
+</html>
